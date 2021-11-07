@@ -9,6 +9,7 @@ public class Enemy : MonoBehaviour
     private Weapon weapon;
     private Animator animator;
     private EnemyState _state;
+    private Vector2 screenBounds;
 
     [HideInInspector] public Vector2Int location;
     public EnemyEvent Destroyed = new EnemyEvent();
@@ -37,6 +38,9 @@ public class Enemy : MonoBehaviour
         animator = GetComponent<Animator>();
         weapon = GetComponent<Weapon>();
 
+        var spriteSize = GetComponent<SpriteRenderer>().sprite.bounds.size;
+        this.screenBounds = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, Screen.height, Camera.main.transform.position.z)) - new Vector3(spriteSize.x / 2, spriteSize.y / 2);
+
         StartCoroutine(Shoot());
     }
     private void OnTriggerEnter2D(Collider2D collision)
@@ -54,7 +58,6 @@ public class Enemy : MonoBehaviour
     }
     #endregion
 
-
     #region Methods
     /// <summary>
     /// Al completarse la animacion y desaparecer la nave se detruye el objeto
@@ -62,6 +65,16 @@ public class Enemy : MonoBehaviour
     public void Die()
     {
         Destroy(gameObject);
+    }
+    /// <summary>
+    /// Determina si la nave se puede mover horizonalmente
+    /// </summary>
+    /// <param name="displacement"></param>
+    /// <returns></returns>
+    public bool Can_Move(float displacement)
+    {
+        Vector3 newPos = this.transform.position + (Vector3.right * displacement);
+        return newPos.x > -this.screenBounds.x && newPos.x < this.screenBounds.x;
     }
     private void Invoke_DestroyEvent()
     {

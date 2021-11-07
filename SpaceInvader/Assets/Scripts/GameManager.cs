@@ -15,6 +15,7 @@ public class GameManager : MonoBehaviour
     private int columns = 10;
     private Enemy[,] enemies;
     private GameState _state;
+    private EnemiesDirection enemiesDirection;
 
     /// <summary>
     /// Estado del juego en curso
@@ -25,16 +26,7 @@ public class GameManager : MonoBehaviour
         set
         {
             _state = value;
-
-            if (value == GameState.Loading)
-                StartCoroutine(Load_Enemies());
-            else if (value == GameState.Playing)
-            {
-                for (int col = 0; col < columns; col++)
-                    this.enemies[0, col].State = Enemy.EnemyState.Shooting; // le indico a la primera fila que comiece a disparar
-
-                player.enabled = true;
-            }
+            OnStateChange();
         }
     }
 
@@ -42,6 +34,7 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         State = GameState.Loading;
+        enemiesDirection = EnemiesDirection.Right;
     }
     #endregion
 
@@ -106,26 +99,88 @@ public class GameManager : MonoBehaviour
         for (int row = 0; row < this.rows; row++)
         {
             Enemy shootingEnemy = this.enemies[row, enemy.location.x];
-            if (shootingEnemy != null && shootingEnemy.State != Enemy.EnemyState.Dying) 
+            if (shootingEnemy != null && shootingEnemy.State != Enemy.EnemyState.Dying)
             {
-                shootingEnemy.State = Enemy.EnemyState.Shooting; 
+                shootingEnemy.State = Enemy.EnemyState.Shooting;
                 break;
             }
+        }
+    }
+    private void OnStateChange()
+    {
+        if (this.State == GameState.Loading)
+            StartCoroutine(Load_Enemies());
+        else if (this.State == GameState.Playing)
+        {
+            for (int col = 0; col < columns; col++)
+                this.enemies[0, col].State = Enemy.EnemyState.Shooting; // le indico a la primera fila que comiece a disparar
+
+            player.enabled = true;
+            InvokeRepeating("MoveEnemies", 2, 2);
         }
     }
     /// <summary>
     /// Desplaza los enemigos por el escenario
     /// </summary>
-    //private void MoveEnemies()
-    //{
-    //    enemies.ForEach(obj =>
-    //    {
-    //        obj.transform.Translate(Vector3.right * 1);
-    //    });
-    //}
+    private void MoveEnemies()
+    {
+        float x = enemiesDirection == EnemiesDirection.Right ? 1 : -1;
+        float y = 1;
+
+        Enemy firtEnemy = Get_FirtColumnEnemy();
+        if (firtEnemy != null)
+        {
+            Vector3 translation = Vector3.zero;
+            if (firtEnemy.Can_Move(x))
+                translation = Vector3.right * x; // si la primera nave encontrada puede moverse sin salirse de los limites, se aplica el movimiento a todas las nave
+            else
+            {
+                translation = Vector3.down * y; // si no hay movimiento posible las naven bajan una fila
+                enemiesDirection = enemiesDirection == EnemiesDirection.Right ? EnemiesDirection.Left : EnemiesDirection.Right;
+            }
+
+            for (int row = 0; row < rows; row++)
+                for (int col = 0; col < columns; col++)
+                {
+                    var enemy = enemies[row, col];
+                    if (enemy != null)
+                        enemy.transform.Translate(translation);
+                }
+        }
+    }
+    /// <summary>
+    /// Obtengo el primer enemigo vivo en la columna de la izquierda o derecha
+    /// </summary>
+    /// <returns></returns>
+    private Enemy Get_FirtColumnEnemy()
+    {
+        if (enemiesDirection == EnemiesDirection.Right)
+            for (int col = this.columns - 1; col >= 0; col--)
+                for (int row = 0; row < rows; row++)
+                {
+                    var enemy = enemies[row, col];
+                    if (enemy != null)
+                        return enemy;
+                }
+        else
+            for (int col = 0; col < columns; col++)
+                for (int row = 0; row < rows; row++)
+                {
+                    var enemy = enemies[row, col];
+                    if (enemy != null)
+                        return enemy;
+                }
+
+        return null;
+    }
     #endregion
 
     #region Structures
+    public enum EnemiesDirection
+    {
+        Left,
+        Right
+    }
     public enum GameState
     {
         Loading,

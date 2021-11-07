@@ -24,6 +24,11 @@ public class Player : MonoBehaviour
         Move();
         Shoot();
     }
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+        if (collision.CompareTag("Enemy"))
+            print("Die");
+    }
     #endregion
 
     #region Methods
