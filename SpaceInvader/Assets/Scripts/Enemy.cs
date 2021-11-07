@@ -1,21 +1,39 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 public class Enemy : MonoBehaviour
 {
     #region Objects
     private Weapon weapon;
     private Animator animator;
+    private EnemyState _state;
 
     [HideInInspector] public Vector2Int location;
+    public EnemyEvent Destroyed = new EnemyEvent();
     public int lives;
-    public bool canShoot;
+    public Model model;
+
+    public EnemyState State
+    {
+        get => _state;
+        set
+        {
+            _state = value;
+            if (value == EnemyState.Dying)
+            {
+                animator.SetTrigger("Destroy");
+                Invoke("Invoke_DestroyEvent", 0.1f);
+            }
+        }
+    }
     #endregion
 
     #region Unity Methods
     void Start()
     {
+        State = EnemyState.Idle;
         animator = GetComponent<Animator>();
         weapon = GetComponent<Weapon>();
 
@@ -29,7 +47,9 @@ public class Enemy : MonoBehaviour
             lives--;
 
             if (lives == 0)
-                animator.SetTrigger("Die");
+                this.State = EnemyState.Dying;
+            else
+                animator.SetTrigger("Hit");
         }
     }
     #endregion
@@ -43,6 +63,10 @@ public class Enemy : MonoBehaviour
     {
         Destroy(gameObject);
     }
+    private void Invoke_DestroyEvent()
+    {
+        Destroyed.Invoke(this);
+    }
     /// <summary>
     /// Dispara una bala al player
     /// </summary>
@@ -50,11 +74,30 @@ public class Enemy : MonoBehaviour
     {
         while (true)
         {
-            if (canShoot)
+            if (this.State == EnemyState.Shooting)
                 weapon.Shoot();
 
             yield return new WaitForSeconds(Random.Range(1f, 3f));
         }
+    }
+    #endregion
+
+    #region Structures
+    public enum Model
+    {
+        Blue,
+        Red,
+        Yellow,
+        Green
+    }
+    public enum EnemyState
+    {
+        Idle,
+        Shooting,
+        Dying
+    }
+    public class EnemyEvent : UnityEvent<Enemy>
+    {
     }
     #endregion
 }

@@ -11,9 +11,14 @@ public class GameManager : MonoBehaviour
     [Header("Components")]
     [SerializeField] private Player player;
 
-    private List<Enemy> enemies;
+    private int rows = 4;
+    private int columns = 10;
+    private Enemy[,] enemies;
     private GameState _state;
 
+    /// <summary>
+    /// Estado del juego en curso
+    /// </summary>
     private GameState State
     {
         get => _state;
@@ -25,20 +30,21 @@ public class GameManager : MonoBehaviour
                 StartCoroutine(Load_Enemies());
             else if (value == GameState.Playing)
             {
-                Enable_EnemiesWeapon();
+                for (int col = 0; col < columns; col++)
+                    this.enemies[0, col].State = Enemy.EnemyState.Shooting; // le indico a la primera fila que comiece a disparar
+
                 player.enabled = true;
             }
         }
     }
 
+    #region Unity Methods
     void Start()
     {
         State = GameState.Loading;
     }
+    #endregion
 
-    void Update()
-    {
-    }
 
     #region Methods
     /// <summary>
@@ -47,67 +53,76 @@ public class GameManager : MonoBehaviour
     private IEnumerator Load_Enemies()
     {
         var parentFolder = GameObject.Find("Enemies");
-        enemies = new List<Enemy>();
+        enemies = new Enemy[4, 10];
 
-        Vector2Int enemyCount = new Vector2Int(10, 4);
-        Vector2 marginPos = new Vector2(3, 1.5f);
-        Vector2 startPos = new Vector2(-(enemyCount.x - 1) * (marginPos.x / 2), 3);
+        Vector2 marginPos = new Vector2(3, 1.8f);
+        Vector2 startPos = new Vector2(-(columns - 1) * (marginPos.x / 2), 3);
 
-        int row = 0;
-        int col = 0;
-        while (true)
-        {
-            var pref = EnemyPref[Random.Range(0, EnemyPref.Length)];
-            var obj = Instantiate(pref, parentFolder.transform);
-            obj.transform.position = startPos + new Vector2(col, row) * marginPos;
-
-            var enemy = obj.GetComponent<Enemy>();
-            enemy.location = new Vector2Int(col, row);
-            enemies.Add(enemy);
-
-            col++;
-            if (col == enemyCount.x)
+        for (int row = 0; row < rows; row++)
+            for (int col = 0; col < columns; col++)
             {
-                col = 0;
-                row++;
-                if (row == enemyCount.y)
-                    break;
+                var pref = EnemyPref[Random.Range(0, EnemyPref.Length)];
+                var obj = Instantiate(pref, parentFolder.transform);
+                obj.transform.position = startPos + new Vector2(col, row) * marginPos;
+
+                var enemy = obj.GetComponent<Enemy>();
+                enemy.location = new Vector2Int(col, row);
+                enemy.Destroyed.AddListener(OnEnemyDestroyed);
+                enemies[row, col] = enemy;
+
+                yield return new WaitForSeconds(0.05f); // aplico demora para generar efecto de aparicion en fila como el juego original
             }
 
-            yield return new WaitForSeconds(0.05f); // aplico demora para generar efecto de aparicion en fila como el juego original
-        }
-
-        //InvokeRepeating("MoveEnemies", 1f, 2f);
         this.State = GameState.Playing;
     }
     /// <summary>
-    /// Activa el arma de las naves para que puedan disparar
+    /// Al destruir una nave valida destruye las naves cercanas del mismo color
     /// </summary>
-    private void Enable_EnemiesWeapon()
+    /// <param name="enemy">Enemigo destruido por el player</param>
+    private void OnEnemyDestroyed(Enemy enemy)
     {
-        bool[] shootingCol = new bool[10]; // indica las columnas de naves enemigas que disparan
+        this.enemies[enemy.location.y, enemy.location.x] = null;
 
-        // recorro las naves en orden de creacion (abajo/izquierda - arriba/derecha)
-        foreach (Enemy enemy in enemies)
+        Enemy leftEnemy = enemy.location.x > 0 ? this.enemies[enemy.location.y, enemy.location.x - 1] : null;
+        Enemy rightEnemy = enemy.location.x < this.columns - 1 ? this.enemies[enemy.location.y, enemy.location.x + 1] : null;
+        Enemy topEnemy = enemy.location.y < this.rows - 1 ? this.enemies[enemy.location.y + 1, enemy.location.x] : null;
+        Enemy bottomEnemy = enemy.location.y > 0 ? this.enemies[enemy.location.y - 1, enemy.location.x] : null;
+
+        // al cambiar el estado a la nave se desencadenara el evento indicando que fue destruida generando una llada recursiva
+        if (leftEnemy != null && leftEnemy.model == enemy.model)
+            leftEnemy.State = Enemy.EnemyState.Dying;
+
+        if (rightEnemy != null && rightEnemy.model == enemy.model)
+            rightEnemy.State = Enemy.EnemyState.Dying;
+
+        if (bottomEnemy != null && bottomEnemy.model == enemy.model)
+            bottomEnemy.State = Enemy.EnemyState.Dying;
+
+        if (topEnemy != null && topEnemy.model == enemy.model)
+            topEnemy.State = Enemy.EnemyState.Dying;
+
+
+        // recorre la columna de la nave eliminada para buscar la siguiente nave que tiene q disparar
+        for (int row = 0; row < this.rows; row++)
         {
-            bool isShooting = shootingCol[enemy.location.x]; // determina si en la columna que se encuentra la nave existe alguna nave disparando
-            if (!isShooting)
+            Enemy shootingEnemy = this.enemies[row, enemy.location.x];
+            if (shootingEnemy != null && shootingEnemy.State != Enemy.EnemyState.Dying) 
             {
-                enemy.canShoot = true; // le indico a la nave que puede disparar
-                shootingCol[enemy.location.x] = true; // marco el flag para que las las otras naves de la misma columna no disparen
+                shootingEnemy.State = Enemy.EnemyState.Shooting; 
+                break;
             }
         }
     }
     /// <summary>
     /// Desplaza los enemigos por el escenario
     /// </summary>
-    private void MoveEnemies()
-    {
-        enemies.ForEach(obj =>
-        {
-            obj.transform.Translate(Vector3.right * 1);
-        });
-    }
+    //private void MoveEnemies()
+    //{
+    //    enemies.ForEach(obj =>
+    //    {
+    //        obj.transform.Translate(Vector3.right * 1);
+    //    });
+    //}
     #endregion
 
     #region Structures
