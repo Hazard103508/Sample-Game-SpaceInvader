@@ -5,38 +5,40 @@ using UnityEngine;
 
 public class Player : MonoBehaviour
 {
-    [SerializeField] private GameObject bulletPrefab;
-    private List<Bullet> bullets;
-    private int bulletIndex;
-    private float speed = 10f;
+    #region Objects
+    private Weapon weapon;
+    private Vector2 screenBounds;
 
-    public int bulletCount;
+    public float speed;
+    #endregion
 
+    #region Unity Events
     void Start()
     {
-        bullets = new List<Bullet>();
-        for (int i = 0; i < bulletCount; i++)
-        {
-            var obj = Instantiate(bulletPrefab, this.transform.parent);
-            obj.SetActive(false);
-            bullets.Add(obj.GetComponent<Bullet>());
-        }
-        this.enabled = false;
+        weapon = GetComponent<Weapon>();
+        var spriteSize = GetComponent<SpriteRenderer>().sprite.bounds.size;
+        this.screenBounds = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, Screen.height, Camera.main.transform.position.z)) - new Vector3(spriteSize.x / 2, spriteSize.y / 2);
     }
-
-
     void Update()
     {
         Move();
         Shoot();
     }
+    #endregion
 
+    #region Methods
     /// <summary>
     /// Mueve al jugador horizontalmente en el mapa
     /// </summary>
     public void Move()
     {
         this.transform.Translate(Vector2.right * Input.GetAxis("Horizontal") * this.speed * Time.deltaTime);
+
+        if (this.transform.position.x < -this.screenBounds.x)
+            this.transform.position = new Vector3(-this.screenBounds.x, this.transform.position.y, 0);
+
+        if (this.transform.position.x > this.screenBounds.x)
+            this.transform.position = new Vector3(this.screenBounds.x, this.transform.position.y, 0);
     }
     /// <summary>
     /// Dispara una bala
@@ -44,17 +46,7 @@ public class Player : MonoBehaviour
     private void Shoot()
     {
         if (Input.GetKeyDown(KeyCode.Space))
-        {
-            var bullet = this.bullets[bulletIndex];
-            if (!bullet.gameObject.activeSelf)
-            {
-                bullet.gameObject.SetActive(true);
-                bullet.transform.position = this.transform.position;
-
-                bulletIndex++;
-                if (bulletIndex == this.bullets.Count)
-                    bulletIndex = 0;
-            }
-        }
+            weapon.Shoot();
     }
+    #endregion
 }
