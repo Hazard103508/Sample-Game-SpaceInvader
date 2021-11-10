@@ -51,13 +51,13 @@ public class Weapon : MonoBehaviour
     /// <summary>
     /// Dispara una bala
     /// </summary>
-    public void Shoot()
+    public void Shoot(Vector3 startPosition)
     {
         var bullet = this.bullets[bulletIndex];
         if (!bullet.gameObject.activeSelf)
         {
             bullet.gameObject.SetActive(true);
-            bullet.transform.position = this.transform.position;
+            bullet.transform.position = startPosition;
 
             bulletIndex++;
             if (bulletIndex == this.bullets.Count)

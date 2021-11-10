@@ -6,16 +6,17 @@ using UnityEngine.Events;
 public class Enemy : MonoBehaviour
 {
     #region Objects
-    private Weapon weapon;
     private Animator animator;
     private EnemyState _state;
     private Vector2 screenBounds;
 
-    [HideInInspector] public Vector2Int location;
     public EnemyEvent Destroyed = new EnemyEvent();
     public int lives;
     public Model model;
 
+    /// <summary>
+    /// Estado actual del enemigo
+    /// </summary>
     public EnemyState State
     {
         get => _state;
@@ -29,6 +30,15 @@ public class Enemy : MonoBehaviour
             }
         }
     }
+
+    /// <summary>
+    /// Numero de fila que tiene la nave en la grilla
+    /// </summary>
+    public int Row { get; set; }
+    /// <summary>
+    /// Numero de columna que tiene la nave en la grilla
+    /// </summary>
+    public int Column { get; set; }
     #endregion
 
     #region Unity Methods
@@ -36,12 +46,9 @@ public class Enemy : MonoBehaviour
     {
         State = EnemyState.Idle;
         animator = GetComponent<Animator>();
-        weapon = GetComponent<Weapon>();
 
         var spriteSize = GetComponent<SpriteRenderer>().sprite.bounds.size;
         this.screenBounds = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, Screen.height, Camera.main.transform.position.z)) - new Vector3(spriteSize.x / 2, spriteSize.y / 2);
-
-        StartCoroutine(Shoot());
     }
     private void OnTriggerEnter2D(Collider2D collision)
     {
@@ -80,19 +87,6 @@ public class Enemy : MonoBehaviour
     {
         Destroyed.Invoke(this);
     }
-    /// <summary>
-    /// Dispara una bala al player
-    /// </summary>
-    private IEnumerator Shoot()
-    {
-        while (true)
-        {
-            if (this.State == EnemyState.Shooting)
-                weapon.Shoot();
-
-            yield return new WaitForSeconds(Random.Range(1f, 3f));
-        }
-    }
     #endregion
 
     #region Structures
@@ -106,7 +100,6 @@ public class Enemy : MonoBehaviour
     public enum EnemyState
     {
         Idle,
-        Shooting,
         Dying
     }
     public class EnemyEvent : UnityEvent<Enemy>

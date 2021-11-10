@@ -5,18 +5,19 @@ using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
+    #region Objects
     [Header("Prefab")]
     [SerializeField] private GameObject[] EnemyPref;
 
     [Header("Components")]
     [SerializeField] private Player player;
+    [SerializeField] private Weapon enemiesWeapon;
 
-    private int rows = 4;
-    private int columns = 10;
-    private Enemy[,] enemies;
+    private EnemyArmy enemyArmy;
     private GameState _state;
-    private EnemiesDirection enemiesDirection;
+    #endregion
 
+    #region Properties
     /// <summary>
     /// Estado del juego en curso
     /// </summary>
@@ -29,15 +30,14 @@ public class GameManager : MonoBehaviour
             OnStateChange();
         }
     }
+    #endregion
 
     #region Unity Methods
     void Start()
     {
         State = GameState.Loading;
-        enemiesDirection = EnemiesDirection.Right;
     }
     #endregion
-
 
     #region Methods
     /// <summary>
@@ -46,25 +46,29 @@ public class GameManager : MonoBehaviour
     private IEnumerator Load_Enemies()
     {
         var parentFolder = GameObject.Find("Enemies");
-        enemies = new Enemy[4, 10];
+        enemyArmy = new EnemyArmy();
 
         Vector2 marginPos = new Vector2(3, 1.8f);
-        Vector2 startPos = new Vector2(-(columns - 1) * (marginPos.x / 2), 3);
+        Vector2 startPos = new Vector2(-(enemyArmy.Columns - 1) * (marginPos.x / 2), 3);
 
-        for (int row = 0; row < rows; row++)
-            for (int col = 0; col < columns; col++)
+        for (int row = 0; row < enemyArmy.Rows; row++)
+            for (int col = 0; col < enemyArmy.Columns; col++)
             {
                 var pref = EnemyPref[Random.Range(0, EnemyPref.Length)];
                 var obj = Instantiate(pref, parentFolder.transform);
                 obj.transform.position = startPos + new Vector2(col, row) * marginPos;
 
                 var enemy = obj.GetComponent<Enemy>();
-                enemy.location = new Vector2Int(col, row);
+                enemy.Row = row;
+                enemy.Column = col;
                 enemy.Destroyed.AddListener(OnEnemyDestroyed);
-                enemies[row, col] = enemy;
+
+                this.enemyArmy[row, col] = enemy;
 
                 yield return new WaitForSeconds(0.05f); // aplico demora para generar efecto de aparicion en fila como el juego original
             }
+
+        this.enemyArmy.Init_FronLine();
 
         this.State = GameState.Playing;
     }
@@ -74,49 +78,37 @@ public class GameManager : MonoBehaviour
     /// <param name="enemy">Enemigo destruido por el player</param>
     private void OnEnemyDestroyed(Enemy enemy)
     {
-        this.enemies[enemy.location.y, enemy.location.x] = null;
+        this.enemyArmy[enemy] = null;
 
-        Enemy leftEnemy = enemy.location.x > 0 ? this.enemies[enemy.location.y, enemy.location.x - 1] : null;
-        Enemy rightEnemy = enemy.location.x < this.columns - 1 ? this.enemies[enemy.location.y, enemy.location.x + 1] : null;
-        Enemy topEnemy = enemy.location.y < this.rows - 1 ? this.enemies[enemy.location.y + 1, enemy.location.x] : null;
-        Enemy bottomEnemy = enemy.location.y > 0 ? this.enemies[enemy.location.y - 1, enemy.location.x] : null;
+        Enemy sideEnemy = this.enemyArmy.Get_Left(enemy);
+        if (sideEnemy != null && sideEnemy.model == enemy.model)
+            sideEnemy.State = Enemy.EnemyState.Dying;
 
-        // al cambiar el estado a la nave se desencadenara el evento indicando que fue destruida generando una llada recursiva
-        if (leftEnemy != null && leftEnemy.model == enemy.model)
-            leftEnemy.State = Enemy.EnemyState.Dying;
+        sideEnemy = this.enemyArmy.Get_Right(enemy);
+        if (sideEnemy != null && sideEnemy.model == enemy.model)
+            sideEnemy.State = Enemy.EnemyState.Dying;
 
-        if (rightEnemy != null && rightEnemy.model == enemy.model)
-            rightEnemy.State = Enemy.EnemyState.Dying;
+        sideEnemy = this.enemyArmy.Get_Top(enemy);
+        if (sideEnemy != null && sideEnemy.model == enemy.model)
+            sideEnemy.State = Enemy.EnemyState.Dying;
 
-        if (bottomEnemy != null && bottomEnemy.model == enemy.model)
-            bottomEnemy.State = Enemy.EnemyState.Dying;
-
-        if (topEnemy != null && topEnemy.model == enemy.model)
-            topEnemy.State = Enemy.EnemyState.Dying;
-
-
-        // recorre la columna de la nave eliminada para buscar la siguiente nave que tiene q disparar
-        for (int row = 0; row < this.rows; row++)
-        {
-            Enemy shootingEnemy = this.enemies[row, enemy.location.x];
-            if (shootingEnemy != null && shootingEnemy.State != Enemy.EnemyState.Dying)
-            {
-                shootingEnemy.State = Enemy.EnemyState.Shooting;
-                break;
-            }
-        }
+        sideEnemy = this.enemyArmy.Get_Bottom(enemy);
+        if (sideEnemy != null && sideEnemy.model == enemy.model)
+            sideEnemy.State = Enemy.EnemyState.Dying;
     }
+
+    /// <summary>
+    /// Funcion que se desencadena al cambiar el estado del juego
+    /// </summary>
     private void OnStateChange()
     {
         if (this.State == GameState.Loading)
             StartCoroutine(Load_Enemies());
         else if (this.State == GameState.Playing)
         {
-            for (int col = 0; col < columns; col++)
-                this.enemies[0, col].State = Enemy.EnemyState.Shooting; // le indico a la primera fila que comiece a disparar
-
             player.enabled = true;
             InvokeRepeating("MoveEnemies", 2, 2);
+            Shoot_ToPlayer();
         }
     }
     /// <summary>
@@ -124,59 +116,24 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private void MoveEnemies()
     {
-        float x = enemiesDirection == EnemiesDirection.Right ? 1 : -1;
-        float y = 1;
-
-        Enemy firtEnemy = Get_FirtColumnEnemy();
-        if (firtEnemy != null)
-        {
-            Vector3 translation = Vector3.zero;
-            if (firtEnemy.Can_Move(x))
-                translation = Vector3.right * x; // si la primera nave encontrada puede moverse sin salirse de los limites, se aplica el movimiento a todas las nave
-            else
-            {
-                translation = Vector3.down * y; // si no hay movimiento posible las naven bajan una fila
-                enemiesDirection = enemiesDirection == EnemiesDirection.Right ? EnemiesDirection.Left : EnemiesDirection.Right;
-            }
-
-            for (int row = 0; row < rows; row++)
-                for (int col = 0; col < columns; col++)
-                {
-                    var enemy = enemies[row, col];
-                    if (enemy != null)
-                        enemy.transform.Translate(translation);
-                }
-        }
+        this.enemyArmy.Move();
     }
     /// <summary>
-    /// Obtengo el primer enemigo vivo en la columna de la izquierda o derecha
+    /// selecciona una nave de la primera fila de enemigos y dispara hacia abajo
     /// </summary>
-    /// <returns></returns>
-    private Enemy Get_FirtColumnEnemy()
+    private void Shoot_ToPlayer()
     {
-        if (enemiesDirection == EnemiesDirection.Right)
-            for (int col = this.columns - 1; col >= 0; col--)
-                for (int row = 0; row < rows; row++)
-                {
-                    var enemy = enemies[row, col];
-                    if (enemy != null)
-                        return enemy;
-                }
-        else
-            for (int col = 0; col < columns; col++)
-                for (int row = 0; row < rows; row++)
-                {
-                    var enemy = enemies[row, col];
-                    if (enemy != null)
-                        return enemy;
-                }
-
-        return null;
+        Enemy enemy = this.enemyArmy.Get_RandomFronLineEnemy();
+        if (enemy != null)
+        {
+            enemiesWeapon.Shoot(enemy.transform.position);
+            Invoke("Shoot_ToPlayer", Random.Range(1f, 3f));
+        }
     }
     #endregion
 
     #region Structures
-    public enum EnemiesDirection
+    public enum ArmyDirection
     {
         Left,
         Right
@@ -185,6 +142,168 @@ public class GameManager : MonoBehaviour
     {
         Loading,
         Playing
+    }
+    public class EnemyArmy
+    {
+        #region Properties
+        /// <summary>
+        /// Direccion de desplazamiento de los enemigos
+        /// </summary>
+        public ArmyDirection Direction { get; set; }
+        /// <summary>
+        /// Filas de la armada enemiga
+        /// </summary>
+        public int Rows { get; private set; }
+        /// <summary>
+        /// Columnas de la armada enemiga
+        /// </summary>
+        public int Columns { get; private set; }
+        /// <summary>
+        /// Naves enemigas
+        /// </summary>
+        private Enemy[,] Enemies { get; set; }
+        /// <summary>
+        /// linea frontal de naves enemigas
+        /// </summary>
+        private List<Enemy> FrontLine { get; set; }
+        #endregion
+
+        #region Indices
+        public Enemy this[int row, int column]
+        {
+            get => Enemies[row, column];
+            set
+            {
+                if (value == null) // estoy eliminando una nave de la grilla
+                {
+                    var currentValue = Enemies[row, column];
+                    int frontLineIndex = this.FrontLine.IndexOf(currentValue);
+                    if (frontLineIndex >= 0) // la nave eliminada pertenecia a la linea frontal
+                    {
+                        this.FrontLine.Remove(currentValue);
+                        for (int r = currentValue.Row + 1; r < this.Rows; r++)
+                            if (this[r, currentValue.Column] != null)
+                            {
+                                this.FrontLine.Add(this[r, currentValue.Column]); // busco la siguiente nave disponible en la columna
+                                this.FrontLine = this.FrontLine.OrderBy(obj => obj.Column).ToList();
+                                break;
+                            }
+                    }
+                }
+
+                Enemies[row, column] = value;
+            }
+        }
+        public Enemy this[Enemy enemy]
+        {
+            get => this[enemy.Row, enemy.Column];
+            set => this[enemy.Row, enemy.Column] = value;
+        }
+        #endregion
+
+        #region Constructor
+        public EnemyArmy()
+        {
+            this.Rows = 4;
+            this.Columns = 10;
+            this.Enemies = new Enemy[this.Rows, this.Columns];
+            this.Direction = ArmyDirection.Right;
+        }
+        #endregion
+
+        /// <summary>
+        /// Obtiene la nave ubicada a la izquierda de la nave indicada
+        /// </summary>
+        /// <param name="enemy">nave origen</param>
+        /// <returns></returns>
+        public Enemy Get_Left(Enemy enemy)
+        {
+            return enemy.Column > 0 ? this[enemy.Row, enemy.Column - 1] : null;
+        }
+        /// <summary>
+        /// Obtiene la nave ubicada a la derecha de la nave indicada
+        /// </summary>
+        /// <param name="enemy">nave origen</param>
+        /// <returns></returns>
+        public Enemy Get_Right(Enemy enemy)
+        {
+            return enemy.Column < this.Columns - 1 ? this[enemy.Row, enemy.Column + 1] : null;
+        }
+        /// <summary>
+        /// Obtiene la nave ubicada arriba de la nave indicada
+        /// </summary>
+        /// <param name="enemy">nave origen</param>
+        /// <returns></returns>
+        public Enemy Get_Top(Enemy enemy)
+        {
+            return enemy.Row < this.Rows - 1 ? this[enemy.Row + 1, enemy.Column] : null;
+        }
+        /// <summary>
+        /// Obtiene la nave ubicada abajo de la nave indicada
+        /// </summary>
+        /// <param name="enemy">nave origen</param>
+        /// <returns></returns>
+        public Enemy Get_Bottom(Enemy enemy)
+        {
+            return enemy.Row > 0 ? this[enemy.Row - 1, enemy.Column] : null;
+        }
+        /// <summary>
+        /// inicializa la linea frontal de enemigos con la primera fila de la grilla
+        /// </summary>
+        public void Init_FronLine()
+        {
+            this.FrontLine = new List<Enemy>();
+            for (int col = 0; col < this.Columns; col++)
+                this.FrontLine.Add(this[0, col]);
+        }
+        /// <summary>
+        /// Obtiene un enemigo al azar de la lista de enemigos que pueden disparar
+        /// </summary>
+        /// <returns></returns>
+        public Enemy Get_RandomFronLineEnemy()
+        {
+            if (this.FrontLine.Any())
+                return this.FrontLine[Random.Range(0, this.FrontLine.Count)];
+            else
+                return null;
+        }
+        /// <summary>
+        /// Mueve el grupo de naves enemigas
+        /// </summary>
+        public void Move()
+        {
+            float displacement = 1f;
+
+            Vector3 translation = Vector3.zero;
+            float x = this.Direction == ArmyDirection.Right ? displacement : -displacement;
+
+            if (Can_Move(x))
+                translation = Vector3.right * x;
+            else
+            {
+                translation = Vector3.down * displacement;
+                this.Direction = this.Direction == ArmyDirection.Right ? ArmyDirection.Left : ArmyDirection.Right;
+            }
+
+            for (int row = 0; row < this.Rows; row++)
+                for (int col = 0; col < this.Columns; col++)
+                {
+                    Enemy enemy = this[row, col];
+                    if (enemy != null)
+                        enemy.transform.Translate(translation);
+                }
+        }
+        /// <summary>
+        /// Determina si la naves pueden moverse
+        /// </summary>
+        /// <returns></returns>
+        private bool Can_Move(float x)
+        {
+            if (this.FrontLine.Any())
+                return (this.Direction == ArmyDirection.Right ? this.FrontLine.Last() : this.FrontLine.First()).Can_Move(x);
+            else
+                return false;
+        }
     }
     #endregion
 }

@@ -71,7 +71,7 @@ public class Player : MonoBehaviour
     private void Shoot()
     {
         if (Input.GetKeyDown(KeyCode.Space))
-            weapon.Shoot();
+            weapon.Shoot(this.transform.position);
     }
     #endregion
 
