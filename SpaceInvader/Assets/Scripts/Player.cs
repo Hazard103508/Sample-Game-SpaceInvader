@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class Player : MonoBehaviour
 {
@@ -9,10 +10,26 @@ public class Player : MonoBehaviour
     private Weapon weapon;
     private Animator animator;
     private Vector2 screenBounds;
-    private PlayerState playerState;
+    private PlayerState _state;
 
     public float speed;
     #endregion
+
+    #region Properties
+    public PlayerState State
+    {
+        get => _state;
+        set
+        {
+            _state = value;
+            if (value == PlayerState.Dying)
+                animator.SetTrigger("Destroy");
+            else if (value == PlayerState.Normal)
+                animator.SetTrigger("Idle");
+        }
+    }
+    #endregion
+
 
     #region Unity Events
     void Start()
@@ -25,7 +42,7 @@ public class Player : MonoBehaviour
     }
     void Update()
     {
-        if (playerState == PlayerState.Normal)
+        if (this.State == PlayerState.Normal)
         {
             Move();
             Shoot();
@@ -33,12 +50,12 @@ public class Player : MonoBehaviour
     }
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if (playerState != PlayerState.Dying)
+        if (this.State != PlayerState.Dying)
         {
             if (collision.CompareTag("Enemy") || collision.CompareTag("Enemy_Bullet"))
             {
-                playerState = PlayerState.Dying;
-                animator.SetTrigger("Destroy");
+                this.State = PlayerState.Dying;
+                Session.Lives--;
             }
         }
     }
@@ -63,7 +80,10 @@ public class Player : MonoBehaviour
     /// </summary>
     public void Die()
     {
-        Destroy(gameObject);
+        if (Session.Lives == 0)
+            SceneManager.LoadScene("GameOver");
+        else
+            this.State = PlayerState.Normal;
     }
     /// <summary>
     /// Dispara una bala
