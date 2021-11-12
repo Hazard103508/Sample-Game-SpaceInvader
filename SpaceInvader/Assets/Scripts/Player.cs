@@ -7,6 +7,9 @@ using UnityEngine.SceneManagement;
 public class Player : MonoBehaviour
 {
     #region Objects
+    [SerializeField] private AudioSource laserSound;
+    [SerializeField] private AudioSource explotionSound;
+
     private Weapon weapon;
     private Animator animator;
     private Vector2 screenBounds;
@@ -23,7 +26,10 @@ public class Player : MonoBehaviour
         {
             _state = value;
             if (value == PlayerState.Dying)
+            {
+                explotionSound.Play();
                 animator.SetTrigger("Destroy");
+            }
             else if (value == PlayerState.Normal)
                 animator.SetTrigger("Idle");
         }
@@ -57,6 +63,9 @@ public class Player : MonoBehaviour
                 this.State = PlayerState.Dying;
                 Session.Lives--;
             }
+
+            if (collision.CompareTag("Enemy"))
+                collision.GetComponent<Enemy>().State = Enemy.EnemyState.Dying;
         }
     }
     #endregion
@@ -91,7 +100,10 @@ public class Player : MonoBehaviour
     private void Shoot()
     {
         if (Input.GetKeyDown(KeyCode.Space))
-            weapon.Shoot(this.transform.position);
+        {
+            if (weapon.Shoot(this.transform.position))
+                laserSound.Play();
+        }
     }
     #endregion
 

@@ -2,12 +2,15 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
     #region Objects
     [Header("Prefab")]
     [SerializeField] private GameObject[] EnemyPref;
+    [SerializeField] private Text labelWin;
 
     [Header("Components")]
     [SerializeField] private Player player;
@@ -35,7 +38,18 @@ public class GameManager : MonoBehaviour
     #region Unity Methods
     void Start()
     {
+        Session.EnemiesChanged += EnemiesCountChanged;
         State = GameState.Loading;
+    }
+
+    private void EnemiesCountChanged()
+    {
+        if (Session.Enemies == 0)
+            State = GameState.Win;
+    }
+    private void OnDestroy()
+    {
+        Session.EnemiesChanged -= EnemiesCountChanged;
     }
     #endregion
 
@@ -68,6 +82,7 @@ public class GameManager : MonoBehaviour
                 yield return new WaitForSeconds(0.05f); // aplico demora para generar efecto de aparicion en fila como el juego original
             }
 
+        Session.Enemies = this.enemyArmy.Rows * this.enemyArmy.Columns;
         this.enemyArmy.Init_FronLine();
 
         this.State = GameState.Playing;
@@ -107,8 +122,13 @@ public class GameManager : MonoBehaviour
         else if (this.State == GameState.Playing)
         {
             player.enabled = true;
-            InvokeRepeating("MoveEnemies", 2, 2);
+            InvokeRepeating("MoveEnemies", 0, Session.ArmyMoveTime);
             Shoot_ToPlayer();
+        }
+        else if (this.State == GameState.Win)
+        {
+            labelWin.gameObject.SetActive(true);
+            Invoke("Next_Level", 3);
         }
     }
     /// <summary>
@@ -130,6 +150,20 @@ public class GameManager : MonoBehaviour
             Invoke("Shoot_ToPlayer", Random.Range(1f, 3f));
         }
     }
+    /// <summary>
+    /// Carga el siguiente nivel
+    /// </summary>
+    private void Next_Level()
+    {
+        if (Session.Lives > 0) // puede morir con una bala perdida
+        {
+            if (Session.ArmyMoveTime > 0.5f)
+                Session.ArmyMoveTime -= 0.05f; // acelero la velocidad de las naves
+
+            Session.Level++;
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
+    }
     #endregion
 
     #region Structures
@@ -141,7 +175,8 @@ public class GameManager : MonoBehaviour
     public enum GameState
     {
         Loading,
-        Playing
+        Playing,
+        Win
     }
     public class EnemyArmy
     {
@@ -177,17 +212,20 @@ public class GameManager : MonoBehaviour
                 if (value == null) // estoy eliminando una nave de la grilla
                 {
                     var currentValue = Enemies[row, column];
-                    int frontLineIndex = this.FrontLine.IndexOf(currentValue);
-                    if (frontLineIndex >= 0) // la nave eliminada pertenecia a la linea frontal
+                    if (currentValue != null)
                     {
-                        this.FrontLine.Remove(currentValue);
-                        for (int r = currentValue.Row + 1; r < this.Rows; r++)
-                            if (this[r, currentValue.Column] != null)
-                            {
-                                this.FrontLine.Add(this[r, currentValue.Column]); // busco la siguiente nave disponible en la columna
-                                this.FrontLine = this.FrontLine.OrderBy(obj => obj.Column).ToList();
-                                break;
-                            }
+                        int frontLineIndex = this.FrontLine.IndexOf(currentValue);
+                        if (frontLineIndex >= 0) // la nave eliminada pertenecia a la linea frontal
+                        {
+                            this.FrontLine.Remove(currentValue);
+                            for (int r = currentValue.Row + 1; r < this.Rows; r++)
+                                if (this[r, currentValue.Column] != null)
+                                {
+                                    this.FrontLine.Add(this[r, currentValue.Column]); // busco la siguiente nave disponible en la columna
+                                    this.FrontLine = this.FrontLine.OrderBy(obj => obj.Column).ToList();
+                                    break;
+                                }
+                        }
                     }
                 }
 
@@ -281,8 +319,11 @@ public class GameManager : MonoBehaviour
                 translation = Vector3.right * x;
             else
             {
-                translation = Vector3.down * displacement;
                 this.Direction = this.Direction == ArmyDirection.Right ? ArmyDirection.Left : ArmyDirection.Right;
+
+                bool verticalLimit = this.FrontLine.Any(obj => obj.transform.position.y <= -10);
+                if (!verticalLimit)
+                    translation = Vector3.down * displacement;
             }
 
             for (int row = 0; row < this.Rows; row++)

@@ -51,7 +51,7 @@ public class Weapon : MonoBehaviour
     /// <summary>
     /// Dispara una bala
     /// </summary>
-    public void Shoot(Vector3 startPosition)
+    public bool Shoot(Vector3 startPosition)
     {
         var bullet = this.bullets[bulletIndex];
         if (!bullet.gameObject.activeSelf)
@@ -62,7 +62,11 @@ public class Weapon : MonoBehaviour
             bulletIndex++;
             if (bulletIndex == this.bullets.Count)
                 bulletIndex = 0;
+
+            return true;
         }
+
+        return false;
     }
     #endregion
 }

@@ -6,6 +6,9 @@ using UnityEngine.Events;
 public class Enemy : MonoBehaviour
 {
     #region Objects
+    [SerializeField] private AudioSource AlienSound;
+    [SerializeField] private AudioSource explotionSound;
+
     private Animator animator;
     private EnemyState _state;
     private Vector2 screenBounds;
@@ -13,6 +16,7 @@ public class Enemy : MonoBehaviour
     public EnemyEvent Destroyed = new EnemyEvent();
     public int lives;
     public Model model;
+    public int scorePoint;
 
     /// <summary>
     /// Estado actual del enemigo
@@ -25,6 +29,8 @@ public class Enemy : MonoBehaviour
             _state = value;
             if (value == EnemyState.Dying)
             {
+                explotionSound.Play();
+                Session.Score += this.scorePoint;
                 animator.SetTrigger("Destroy");
                 Invoke("Invoke_DestroyEvent", 0.1f);
             }
@@ -49,18 +55,23 @@ public class Enemy : MonoBehaviour
 
         var spriteSize = GetComponent<SpriteRenderer>().sprite.bounds.size;
         this.screenBounds = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, Screen.height, Camera.main.transform.position.z)) - new Vector3(spriteSize.x / 2, spriteSize.y / 2);
+
+        AlienSound.Play();
     }
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if (lives > 0 && collision.CompareTag("Player_Bullet"))
+        if (this.State == EnemyState.Idle)
         {
-            collision.gameObject.SetActive(false);
-            lives--;
+            if (lives > 0 && collision.CompareTag("Player_Bullet"))
+            {
+                collision.gameObject.SetActive(false);
+                lives--;
 
-            if (lives == 0)
-                this.State = EnemyState.Dying;
-            else
-                animator.SetTrigger("Hit");
+                if (lives == 0)
+                    this.State = EnemyState.Dying;
+                else
+                    animator.SetTrigger("Hit");
+            }
         }
     }
     #endregion
@@ -71,6 +82,7 @@ public class Enemy : MonoBehaviour
     /// </summary>
     public void Die()
     {
+        Session.Enemies--;
         Destroy(gameObject);
     }
     /// <summary>
