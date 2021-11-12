@@ -5,12 +5,12 @@ using UnityEngine.EventSystems;
 public class PixelButton : MonoBehaviour, ISelectHandler, IDeselectHandler
 {
     [SerializeField] Text Label;
-    private AudioSource clickSound;
+    [SerializeField] private AudioSource clickSound;
+    [SerializeField] private AudioSource SelectSound;
     private Button button;
 
     private void Start()
     {
-        clickSound = GetComponent<AudioSource>();
         if (clickSound != null)
         {
             button = GetComponent<Button>();
@@ -25,6 +25,8 @@ public class PixelButton : MonoBehaviour, ISelectHandler, IDeselectHandler
 
     public void OnSelect(BaseEventData eventData)
     {
+        if (SelectSound != null)
+            SelectSound.Play();
         Label.color = Color.yellow;
     }
 
