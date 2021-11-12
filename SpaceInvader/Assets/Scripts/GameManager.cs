@@ -10,11 +10,12 @@ public class GameManager : MonoBehaviour
     #region Objects
     [Header("Prefab")]
     [SerializeField] private GameObject[] EnemyPref;
-    [SerializeField] private Text labelWin;
 
     [Header("Components")]
     [SerializeField] private Player player;
     [SerializeField] private Weapon enemiesWeapon;
+    [SerializeField] private Text labelWin;
+    [SerializeField] private PausePanel pausePanel;
 
     private EnemyArmy enemyArmy;
     private GameState _state;
@@ -40,6 +41,10 @@ public class GameManager : MonoBehaviour
     {
         Session.EnemiesChanged += EnemiesCountChanged;
         State = GameState.Loading;
+    }
+    private void Update()
+    {
+        Show_PausePanel();
     }
 
     private void EnemiesCountChanged()
@@ -121,9 +126,18 @@ public class GameManager : MonoBehaviour
             StartCoroutine(Load_Enemies());
         else if (this.State == GameState.Playing)
         {
+            enemiesWeapon.enabled = true;
             player.enabled = true;
             InvokeRepeating("MoveEnemies", 0, Session.ArmyMoveTime);
             Shoot_ToPlayer();
+        }
+        else if (this.State == GameState.Pause)
+        {
+            enemiesWeapon.enabled = false;
+            player.enabled = false;
+            pausePanel.Show();
+            CancelInvoke("MoveEnemies");
+            CancelInvoke("Shoot_ToPlayer");
         }
         else if (this.State == GameState.Win)
         {
@@ -164,6 +178,25 @@ public class GameManager : MonoBehaviour
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
     }
+    /// <summary>
+    /// Muestra el panel de pausa
+    /// </summary>
+    private void Show_PausePanel()
+    {
+        if (this.State == GameState.Playing) // solo se puede pausar cuando el juego ya comenzo, mientras las navees enemigas aparecen o despues de ganar, no permito la pausa
+        {
+            if (!pausePanel.gameObject.activeSelf && (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.P)))
+                this.State = GameState.Pause;
+        }
+    }
+    /// <summary>
+    /// Oculta el panel de pausa
+    /// </summary>
+    public void Hide_PanelPause()
+    {
+        pausePanel.Hide();
+        this.State = GameState.Playing;
+    }
     #endregion
 
     #region Structures
@@ -176,6 +209,7 @@ public class GameManager : MonoBehaviour
     {
         Loading,
         Playing,
+        Pause,
         Win
     }
     public class EnemyArmy

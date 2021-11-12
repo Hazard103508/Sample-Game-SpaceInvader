@@ -26,6 +26,16 @@ public class Weapon : MonoBehaviour
                 Destroy(bullet.gameObject); // destruyo las balas inactivas
         });
     }
+    private void OnDisable()
+    {
+        if (bullets != null)
+            bullets.ForEach(b => b.enabled = false);
+    }
+    private void OnEnable()
+    {
+        if (bullets != null)
+            bullets.ForEach(b => b.enabled = true);
+    }
     #endregion
 
     #region Methods

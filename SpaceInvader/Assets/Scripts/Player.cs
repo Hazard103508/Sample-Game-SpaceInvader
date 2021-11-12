@@ -68,6 +68,16 @@ public class Player : MonoBehaviour
                 collision.GetComponent<Enemy>().State = Enemy.EnemyState.Dying;
         }
     }
+    private void OnDisable()
+    {
+        if (this.weapon != null)
+            this.weapon.enabled = false;
+    }
+    private void OnEnable()
+    {
+        if (this.weapon != null)
+            this.weapon.enabled = true;
+    }
     #endregion
 
     #region Methods
